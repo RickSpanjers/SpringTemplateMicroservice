@@ -1,0 +1,53 @@
+before_script:
+    - docker info
+
+stages:
+    - build
+    - test
+    - publish
+    - deploy
+
+build:
+    stage: build
+    script:
+        - echo "Building"
+        - mvn clean compile
+        - mkdir build
+        - New-Item build/info.txt
+
+test:
+    stage: test
+    script:
+        - echo "Testing"
+        - mvn test verify
+    artifacts:
+        reports:
+            junit:
+                - target/surefire-reports/TEST-*.xml
+                - target/failsafe-reports/TEST-*.xml
+
+publish:
+    stage: publish
+    script:
+        - echo "Publishing docker image"
+        - mvn package
+        - docker build -t hr-template-service -f ./Dockerfile.dockerfile .
+        - docker tag hr-template-service:latest $docker_username/hr-management:hr-template-service
+        - echo "$docker_password" | docker login --username $docker_username --password-stdin
+        - docker push rspanjers/hr-management:hr-template-service
+
+deploy:
+    stage: deploy
+    script:
+        # Set image name as a variable
+        - set IMAGE_NAME=$docker_username/hr-management:hr-template-service
+        # download & install latest kubectl release
+        - curl.exe -LO https://storage.googleapis.com/kubernetes-release/release/v1.17.0/bin/windows/amd64/kubectl.exe
+        # Set kubeconfig as default configuration for kubectl
+        - Set-Content -Path ./.kubeconfig*.yml -Value $KUBECONFIG
+        # Deploy to kubernetes
+        - kubectl set image deployment/hr-template-service hr-template-service=$docker_username/hr-management:hr-template-service --kubeconfig=.kubeconfig.yml 
+
+       
+after_script:
+    - echo "End CI/CD"

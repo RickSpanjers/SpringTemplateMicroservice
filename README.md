@@ -1,1 +1,1 @@
-SpringTemplateMicroservice
+hr-template-service
